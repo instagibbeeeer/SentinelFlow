@@ -15,7 +15,6 @@ def connect():
             c = Cluster(HOSTS); return c, c.connect("sentinelflow")
         except Exception as e:
             print(f"Cassandra not ready: {e}", flush=True); time.sleep(5)
-cluster, db = connect()
 
 @strawberry.type
 class Event:
@@ -83,7 +82,7 @@ class Query:
     def investigations_by_user(self, user_id: str, limit: int = 20) -> list[Investigation]:
         rows = db.execute("SELECT * FROM investigations_by_user WHERE user_id=%s LIMIT %s", (user_id,min(limit,100)))
         return [Investigation(incident_id=str(r.incident_id), created_at=r.created_at, user_id=r.user_id, severity=r.severity, confidence=float(r.confidence), conclusion=r.conclusion, evidence=r.evidence, recommended_actions=r.recommended_actions, agent_mode=r.agent_mode) for r in rows]
-
+cluster, db = connect()
 schema = strawberry.Schema(query=Query)
 app = FastAPI(title="SentinelFlow API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])

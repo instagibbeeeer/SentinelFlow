@@ -8,10 +8,7 @@ GRAPHQL = os.getenv("GRAPHQL_URL", "http://localhost:8000/graphql")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5")
 
-consumer = KafkaConsumer("security-alerts", bootstrap_servers=BOOTSTRAP, group_id="investigator-agent",
-                         auto_offset_reset="latest", value_deserializer=lambda b: json.loads(b.decode()))
-producer = KafkaProducer(bootstrap_servers=BOOTSTRAP, value_serializer=lambda v: json.dumps(v).encode())
-last_investigated = {}
+
 
 def gql(query, variables):
     r = requests.post(GRAPHQL, json={"query":query,"variables":variables}, timeout=10)
@@ -74,17 +71,23 @@ def investigate(alert):
     result=llm_reason(alert,evidence,deterministic_reason(alert,evidence))
     incident={"incident_id":str(uuid.uuid4()),"user_id":alert["user_id"],"created_at":datetime.now(timezone.utc).isoformat(), **result}
     return incident
-
-for msg in consumer:
-    alert=msg.value
-    now=time.time()
-    if now - last_investigated.get(alert["user_id"], 0) < 30:
-        continue
-    try:
-        incident=investigate(alert)
-        producer.send("agent-actions", key=alert["user_id"].encode(), value=incident)
-        producer.flush()
-        last_investigated[alert["user_id"]]=now
-        print(json.dumps(incident,indent=2),flush=True)
-    except Exception as e:
-        print(f"Investigation failed: {e}",flush=True); time.sleep(2)
+def main():
+    consumer = KafkaConsumer("security-alerts", bootstrap_servers=BOOTSTRAP, group_id="investigator-agent",
+                         auto_offset_reset="latest", value_deserializer=lambda b: json.loads(b.decode()))
+    producer = KafkaProducer(bootstrap_servers=BOOTSTRAP, value_serializer=lambda v: json.dumps(v).encode())
+    last_investigated = {}
+    for msg in consumer:
+        alert=msg.value
+        now=time.time()
+        if now - last_investigated.get(alert["user_id"], 0) < 30:
+            continue
+        try:
+            incident=investigate(alert)
+            producer.send("agent-actions", key=alert["user_id"].encode(), value=incident)
+            producer.flush()
+            last_investigated[alert["user_id"]]=now
+            print(json.dumps(incident,indent=2),flush=True)
+        except Exception as e:
+            print(f"Investigation failed: {e}",flush=True); time.sleep(2)
+ if __name__ == "__main__":
+    main()       

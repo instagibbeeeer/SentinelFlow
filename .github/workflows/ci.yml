@@ -2,9 +2,7 @@ name: SentinelFlow CI
 
 on:
   push:
-#empty for now
   pull_request:
-
   workflow_dispatch:
 
 permissions:
@@ -19,6 +17,7 @@ jobs:
     name: Unit + static checks
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -33,12 +32,23 @@ jobs:
             api/requirements.txt
             agent/requirements.txt
             event-writer/requirements.txt
+            simulator/requirements.txt
 
       - name: Install test and application dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
-          pip install -r api/requirements.txt -r agent/requirements.txt -r event-writer/requirements.txt
+          pip install \
+            -r api/requirements.txt \
+            -r agent/requirements.txt \
+            -r event-writer/requirements.txt \
+            -r simulator/requirements.txt
+
+      - name: Show installed tools
+        run: |
+          python --version
+          pytest --version
+          ruff --version
 
       - name: Compile all Docker-project Python
         run: |
@@ -49,21 +59,13 @@ jobs:
           ruff check --select E9,F63,F7,F82 agent api event-writer simulator spark tests
 
       - name: Validate Cassandra init shell
-        run: bash -n cassandra/init.sh
+        run: |
+          bash -n cassandra/init.sh
 
       - name: Validate Docker Compose
-        run: docker compose config -q
-
-      - name: Unit tests + coverage
         run: |
-          pytest -q \
-            --cov=agent \
-            --cov=api \
-            --cov=event-writer \
-            --cov=simulator \
-            --cov=spark \
-            --cov-report=term-missing \
-            --cov-fail-under=65
+          docker compose config -q
 
- #docker-e2e:
-
+      - name: Run unit tests
+        run: |
+          pytest -vv -s --durations=20

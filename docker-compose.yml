@@ -199,6 +199,8 @@ services:
       - /opt/spark/bin/spark-submit
       - --master
       - spark://spark-master:7077
+      - --conf
+      - spark.jars.ivy=/tmp/spark-ivy
       - --packages
       - org.apache.spark:spark-sql-kafka-0-10_2.13:4.2.0
       - /opt/sentinelflow/spark/streaming_alerts.py

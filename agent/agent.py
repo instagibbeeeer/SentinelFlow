@@ -89,5 +89,5 @@ def main():
             print(json.dumps(incident,indent=2),flush=True)
         except Exception as e:
             print(f"Investigation failed: {e}",flush=True); time.sleep(2)
- if __name__ == "__main__":
+if __name__ == "__main__":
     main()       

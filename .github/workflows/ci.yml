@@ -2,7 +2,7 @@ name: SentinelFlow CI
 
 on:
   push:
-
+#empty for now
   pull_request:
 
   workflow_dispatch:
@@ -29,6 +29,7 @@ jobs:
           python-version: '3.12'
           cache: pip
           cache-dependency-path: |
+            requirements-dev.txt
             api/requirements.txt
             agent/requirements.txt
             event-writer/requirements.txt
@@ -36,7 +37,7 @@ jobs:
       - name: Install test and application dependencies
         run: |
           python -m pip install --upgrade pip
-          
+          pip install -r requirements-dev.txt
           pip install -r api/requirements.txt -r agent/requirements.txt -r event-writer/requirements.txt
 
       - name: Compile all Docker-project Python
@@ -64,4 +65,5 @@ jobs:
             --cov-report=term-missing \
             --cov-fail-under=65
 
-  
+ #docker-e2e:
+

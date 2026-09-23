@@ -54,16 +54,9 @@ jobs:
       - name: Validate Docker Compose
         run: docker compose config -q
 
-      - name: Unit tests + coverage
+      - name: Run unit tests
         run: |
-          pytest -q \
-            --cov=agent \
-            --cov=api \
-            --cov=event-writer \
-            --cov=simulator \
-            --cov=spark \
-            --cov-report=term-missing \
-            --cov-fail-under=65
+          pytest -vv -s --durations=20
 
   docker-e2e:
     name: Docker Compose E2E

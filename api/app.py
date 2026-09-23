@@ -6,6 +6,17 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from strawberry.fastapi import GraphQLRouter
 from cassandra.cluster import Cluster
+from typing import NewType, Optional
+
+
+
+BigInt = strawberry.scalar(
+    NewType("BigInt", int),
+    name="BigInt",
+    description="Integer larger than the GraphQL 32-bit Int range",
+    serialize=lambda value: int(value),
+    parse_value=lambda value: int(value),
+)
 
 HOSTS = os.getenv("CASSANDRA_HOSTS", "localhost").split(",")
 _cluster = None
@@ -38,7 +49,7 @@ class Event:
     event_type: str
     ip: str
     country: Optional[str]
-    bytes: int
+    bytes: BigInt
     metadata: str
 
 

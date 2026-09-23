@@ -94,10 +94,15 @@ services:
     volumes:
       - cassandra1_data:/var/lib/cassandra
     healthcheck:
-      test: ["CMD-SHELL", "cqlsh -e 'DESCRIBE CLUSTER' >/dev/null 2>&1"]
-      interval: 15s
+      test:
+        [
+          "CMD-SHELL",
+          "cqlsh -e 'SELECT release_version FROM system.local' >/dev/null 2>&1"
+        ]
+      interval: 10s
       timeout: 10s
       retries: 30
+
 
   cassandra-2:
     image: cassandra:5.0.9
@@ -116,13 +121,23 @@ services:
       HEAP_NEWSIZE: 256M
     volumes:
       - cassandra2_data:/var/lib/cassandra
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "test $$(nodetool status 2>/dev/null | grep -c '^UN') -ge 2"
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+
 
   cassandra-3:
     image: cassandra:5.0.9
     hostname: cassandra-3
     container_name: sentinelflow-cassandra-3
     depends_on:
-      cassandra-1:
+      cassandra-2:
         condition: service_healthy
     environment:
       CASSANDRA_CLUSTER_NAME: SentinelFlow
@@ -134,6 +149,15 @@ services:
       HEAP_NEWSIZE: 256M
     volumes:
       - cassandra3_data:/var/lib/cassandra
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "test $$(nodetool status 2>/dev/null | grep -c '^UN') -ge 3"
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 30
 
   cassandra-init:
     image: cassandra:5.0.9

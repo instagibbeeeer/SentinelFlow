@@ -80,3 +80,17 @@ CREATE TABLE IF NOT EXISTS investigations_by_user (
     agent_mode text,
     PRIMARY KEY ((user_id), created_at, incident_id)
 ) WITH CLUSTERING ORDER BY (created_at DESC);
+
+CREATE TABLE IF NOT EXISTS agent_tool_calls_by_incident (
+    incident_id uuid,
+    started_at timestamp,
+    call_id uuid,
+    tool_name text,
+    completed_at timestamp,
+    duration_ms int,
+    status text,
+    input_json text,
+    result_summary text,
+    error text,
+    PRIMARY KEY ((incident_id), started_at, call_id)
+) WITH CLUSTERING ORDER BY (started_at ASC);

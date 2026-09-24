@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from strawberry.fastapi import GraphQLRouter
 from cassandra.cluster import Cluster
 from typing import NewType, Optional
+from uuid import UUID
 
 
 
@@ -70,6 +71,18 @@ class Investigation:
 class Health:
     status: str
     cassandra_hosts: list[str]
+@strawberry.type
+class ToolCall:
+    call_id: str
+    started_at: datetime
+    completed_at: datetime
+    tool_name: str
+    duration_ms: int
+    status: str
+    input_json: str
+    result_summary: str
+    error: Optional[str]
+
 
 
 def rows_to_events(rows):
@@ -142,7 +155,27 @@ class Query:
             )
             for r in rows
         ]
-
+		
+    @strawberry.field
+    def tool_calls_by_incident(self, incident_id: str, limit: int = 100) -> list[ToolCall]:
+        rows = get_db().execute(
+            "SELECT * FROM agent_tool_calls_by_incident WHERE incident_id=%s LIMIT %s",
+            (UUID(incident_id), min(limit, 500)),
+        )
+        return [
+            ToolCall(
+                call_id=str(r.call_id),
+                started_at=r.started_at,
+                completed_at=r.completed_at,
+                tool_name=r.tool_name,
+                duration_ms=int(r.duration_ms),
+                status=r.status,
+                input_json=r.input_json,
+                result_summary=r.result_summary,
+                error=r.error,
+            )
+            for r in rows
+        ]
 
 schema = strawberry.Schema(query=Query)
 app = FastAPI(title="SentinelFlow API")

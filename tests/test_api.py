@@ -28,6 +28,15 @@ class FakeDB:
                 conclusion="suspicious", evidence='["signal"]',
                 recommended_actions='["review"]', agent_mode="deterministic-tools",
             )]
+        if "agent_tool_calls_by_incident" in query:
+            return [SimpleNamespace(
+                call_id=UUID("d65a5c79-6e65-45bf-a624-f27bc5536f4f"),
+                started_at=datetime(2026, 9, 22, 12, 34, tzinfo=timezone.utc),
+                completed_at=datetime(2026, 9, 22, 12, 34, 0, 10000, tzinfo=timezone.utc),
+                tool_name="get_user_activity", duration_ms=10, status="success",
+                input_json='{"user_id":"alice"}',
+                result_summary='{"type":"list","count":12}', error=None,
+            )]
         return []
 
 
@@ -42,15 +51,21 @@ def test_graphql_queries_cassandra_and_caps_limit(monkeypatch):
     fake = FakeDB()
     monkeypatch.setattr(api, "_db", fake)
     client = TestClient(api.app)
-    query = '''query($u:String!){
+    query = '''query($u:String!,$incident:String!){
       eventsByUser(userId:$u, limit:999){ eventId eventType userId ip }
       investigationsByUser(userId:$u, limit:999){ incidentId severity confidence agentMode }
+      toolCallsByIncident(incidentId:$incident, limit:999){ callId toolName status durationMs }
     }'''
-    response = client.post("/graphql", json={"query": query, "variables": {"u": "alice"}})
+    response = client.post("/graphql", json={"query": query, "variables": {
+        "u": "alice",
+        "incident": "8a6b7070-25f9-4d4b-93b5-29a42554eb53",
+    }})
     assert response.status_code == 200
     body = response.json()
     assert "errors" not in body
     assert body["data"]["eventsByUser"][0]["eventType"] == "LOGIN_FAILED"
     assert body["data"]["investigationsByUser"][0]["severity"] == "HIGH"
+    assert body["data"]["toolCallsByIncident"][0]["toolName"] == "get_user_activity"
     assert fake.calls[0][1][-1] == 500
     assert fake.calls[1][1][-1] == 100
+    assert fake.calls[2][1][-1] == 500

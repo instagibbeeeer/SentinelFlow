@@ -84,7 +84,7 @@ def test_alert_persistence_converts_ids_numbers_and_times():
     assert values[3] == .91
 
 
-def test_incident_is_written_to_both_investigation_views():
+def test_incident_and_tool_trace_are_persisted():
     db = FakeDB()
     p = writer.Persister(db)
     p.persist_incident({
@@ -97,6 +97,25 @@ def test_incident_is_written_to_both_investigation_views():
         "evidence": ["signal"],
         "recommended_actions": ["review"],
         "agent_mode": "deterministic-tools",
+        "tool_trace": [{
+            "call_id": "8a6b7070-25f9-4d4b-93b5-29a42554eb53",
+            "tool_name": "get_user_activity",
+            "started_at": "2026-09-22T12:35:59Z",
+            "completed_at": "2026-09-22T12:35:59.010000Z",
+            "duration_ms": 10,
+            "status": "success",
+            "input": {"user_id": "alice"},
+            "result_summary": {"type": "list", "count": 12},
+            "error": None,
+        }],
     })
-    assert [q for q, _, _ in db.async_calls] == ["investigations_by_incident", "investigations_by_user"]
+    assert [q for q, _, _ in db.async_calls] == [
+        "investigations_by_incident",
+        "investigations_by_user",
+        "agent_tool_calls_by_incident",
+    ]
     assert all(f.awaited for _, _, f in db.async_calls)
+    tool_values = db.async_calls[2][1]
+    assert tool_values[3] == "get_user_activity"
+    assert json.loads(tool_values[7]) == {"user_id": "alice"}
+    assert json.loads(tool_values[8]) == {"type": "list", "count": 12}

@@ -42,6 +42,9 @@ class Persister:
         self.q_incident_user = db.prepare("""INSERT INTO investigations_by_user
         (user_id,created_at,incident_id,severity,confidence,conclusion,evidence,recommended_actions,agent_mode)
         VALUES (?,?,?,?,?,?,?,?,?)""")
+        self.q_tool_call = db.prepare("""INSERT INTO agent_tool_calls_by_incident
+        (incident_id,started_at,call_id,tool_name,completed_at,duration_ms,status,input_json,result_summary,error)
+        VALUES (?,?,?,?,?,?,?,?,?,?)""")
 
     def persist_event(self, e):
         ts = dt(e["timestamp"])
@@ -70,6 +73,20 @@ class Persister:
         vals_user = (i["user_id"], created_at, incident_id, i["severity"], float(i["confidence"]), i["conclusion"], evidence, actions, i.get("agent_mode", "unknown"))
         self.db.execute_async(self.q_incident, vals).result()
         self.db.execute_async(self.q_incident_user, vals_user).result()
+        for call in i.get("tool_trace", []):
+            tool_values = (
+                incident_id,
+                dt(call["started_at"]),
+                uuid.UUID(call["call_id"]),
+                call["tool_name"],
+                dt(call["completed_at"]),
+                int(call.get("duration_ms", 0)),
+                call["status"],
+                json.dumps(call.get("input", {}), separators=(",", ":")),
+                json.dumps(call.get("result_summary"), separators=(",", ":")),
+                call.get("error"),
+            )
+            self.db.execute_async(self.q_tool_call, tool_values).result()
 
 
 def main():

@@ -71,7 +71,7 @@ def main():
     raw = (spark.readStream.format("kafka")
            .option("kafka.bootstrap.servers", BOOTSTRAP)
            .option("subscribe", "security-events")
-           .option("startingOffsets", "latest")
+           .option("startingOffsets", "earliest")
            .load())
     events = (raw.select(F.from_json(F.col("value").cast("string"), schema).alias("e"))
               .select("e.*")

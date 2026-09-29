@@ -1,7 +1,5 @@
-import os, json, uuid
-from datetime import datetime, timezone
+import os
 from pyspark.sql import SparkSession, functions as F, types as T
-from kafka import KafkaProducer
 from risk import (
     ALERT_THRESHOLD,
     FAILED_LOGIN_WEIGHT,
@@ -9,10 +7,11 @@ from risk import (
     LARGE_DOWNLOAD_WEIGHT,
     MULTI_COUNTRY_WEIGHT,
     PRIVILEGE_CHANGE_WEIGHT,
-    alert_reasons,
 )
 
 BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:29092")
+CHECKPOINT = os.getenv("SPARK_CHECKPOINT_LOCATION", "/tmp/sentinelflow-checkpoints")
+KAFKA_AUTH_MODE = os.getenv("KAFKA_AUTH_MODE", "plaintext").lower()
 
 schema = T.StructType([
     T.StructField("event_id", T.StringType()),
@@ -25,6 +24,17 @@ schema = T.StructType([
     T.StructField("bytes", T.LongType()),
     T.StructField("metadata", T.MapType(T.StringType(), T.StringType())),
 ])
+
+
+def with_kafka_options(writer_or_reader):
+    obj = writer_or_reader.option("kafka.bootstrap.servers", BOOTSTRAP)
+    if KAFKA_AUTH_MODE == "msk_iam":
+        obj = (obj
+            .option("kafka.security.protocol", "SASL_SSL")
+            .option("kafka.sasl.mechanism", "AWS_MSK_IAM")
+            .option("kafka.sasl.jaas.config", "software.amazon.msk.auth.iam.IAMLoginModule required;")
+            .option("kafka.sasl.client.callback.handler.class", "software.amazon.msk.auth.iam.IAMClientCallbackHandler"))
+    return obj
 
 
 def build_features(events):
@@ -45,33 +55,47 @@ def build_features(events):
 
 
 def emit_alerts(batch_df, batch_id):
-    rows = batch_df.collect()
-    if not rows:
+    if batch_df.rdd.isEmpty():
         return
-    producer = KafkaProducer(bootstrap_servers=BOOTSTRAP, value_serializer=lambda v: json.dumps(v).encode())
-    for r in rows:
-        reasons = alert_reasons(r.failed_logins, r.privilege_changes, r.download_bytes, r.countries)
-        alert = {
-            "alert_id": str(uuid.uuid4()),
-            "user_id": r.user_id,
-            "alert_time": datetime.now(timezone.utc).isoformat(),
-            "risk_score": float(r.risk_score),
-            "reason": ", ".join(reasons) or "stream anomaly",
-            "window_start": r.window.start.isoformat(),
-            "window_end": r.window.end.isoformat(),
-        }
-        producer.send("security-alerts", key=r.user_id.encode(), value=alert)
-    producer.flush()
-    producer.close()
+
+    reason_parts = F.array_compact(F.array(
+        F.when(F.col("failed_logins") > 0, F.concat(F.col("failed_logins").cast("string"), F.lit(" failed login(s)"))),
+        F.when(F.col("privilege_changes") > 0, F.lit("privilege change")),
+        F.when(F.col("download_bytes") > LARGE_DOWNLOAD_BYTES, F.lit("large download")),
+        F.when(F.col("countries") > 1, F.lit("multiple countries")),
+    ))
+
+    alerts = (batch_df
+        .withColumn("alert_id", F.expr("uuid()"))
+        .withColumn("alert_time", F.current_timestamp())
+        .withColumn("reason", F.concat_ws(", ", reason_parts))
+        .withColumn("window_start", F.col("window.start"))
+        .withColumn("window_end", F.col("window.end"))
+        .select(
+            F.col("user_id").cast("string").alias("key"),
+            F.to_json(F.struct(
+                F.col("alert_id"),
+                F.col("user_id"),
+                F.date_format("alert_time", "yyyy-MM-dd'T'HH:mm:ss.SSSXXX").alias("alert_time"),
+                F.col("risk_score"),
+                F.col("reason"),
+                F.date_format("window_start", "yyyy-MM-dd'T'HH:mm:ss.SSSXXX").alias("window_start"),
+                F.date_format("window_end", "yyyy-MM-dd'T'HH:mm:ss.SSSXXX").alias("window_end"),
+            )).alias("value")
+        ))
+
+    writer = alerts.write.format("kafka")
+    writer = with_kafka_options(writer)
+    writer.option("topic", "security-alerts").save()
 
 
 def main():
     spark = SparkSession.builder.appName("SentinelFlowAlerts").getOrCreate()
     spark.sparkContext.setLogLevel("WARN")
-    raw = (spark.readStream.format("kafka")
-           .option("kafka.bootstrap.servers", BOOTSTRAP)
+    raw_reader = spark.readStream.format("kafka")
+    raw = (with_kafka_options(raw_reader)
            .option("subscribe", "security-events")
-           .option("startingOffsets", "earliest")
+           .option("startingOffsets", "latest")
            .load())
     events = (raw.select(F.from_json(F.col("value").cast("string"), schema).alias("e"))
               .select("e.*")
@@ -79,7 +103,7 @@ def main():
               .withWatermark("event_ts", "2 minutes"))
     features = build_features(events)
     query = (features.writeStream.outputMode("update").foreachBatch(emit_alerts)
-             .option("checkpointLocation", "/tmp/sentinelflow-checkpoints")
+             .option("checkpointLocation", CHECKPOINT)
              .trigger(processingTime="5 seconds").start())
     query.awaitTermination()
 

@@ -5,10 +5,9 @@ import strawberry
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from strawberry.fastapi import GraphQLRouter
-from cassandra.cluster import Cluster
 from typing import NewType, Optional
 from uuid import UUID
-
+from common.cassandra_client import connect as connect_datastore
 
 
 BigInt = strawberry.scalar(
@@ -25,13 +24,7 @@ _db = None
 
 
 def connect():
-    while True:
-        try:
-            cluster = Cluster(HOSTS)
-            return cluster, cluster.connect("sentinelflow")
-        except Exception as e:
-            print(f"Cassandra not ready: {e}", flush=True)
-            time.sleep(5)
+    return connect_datastore();
 
 
 def get_db():

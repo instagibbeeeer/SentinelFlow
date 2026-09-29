@@ -1,20 +1,14 @@
 import json, os, time, uuid
 from datetime import datetime
 from common.kafka_client import make_consumer
-from cassandra.cluster import Cluster
+from common.cassandra_client import connect as connect_datastore
 
 BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 HOSTS = os.getenv("CASSANDRA_HOSTS", "localhost").split(",")
 
 
 def connect():
-    while True:
-        try:
-            cluster = Cluster(HOSTS)
-            return cluster, cluster.connect("sentinelflow")
-        except Exception as e:
-            print(f"Cassandra not ready: {e}", flush=True)
-            time.sleep(5)
+    return connect_datastore();
 
 
 def dt(value):

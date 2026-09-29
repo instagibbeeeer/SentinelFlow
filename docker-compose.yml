@@ -236,7 +236,9 @@ services:
     restart: unless-stopped
 
   api:
-    build: ./api
+    build: 
+      context: .
+      dockerfile: ./api/Dockerfile
     depends_on:
       cassandra-init:
         condition: service_completed_successfully

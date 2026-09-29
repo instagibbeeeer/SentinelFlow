@@ -1,6 +1,6 @@
 import json, os, time, uuid
 from datetime import datetime
-from kafka import KafkaConsumer
+from common.kafka_client import make_consumer
 from cassandra.cluster import Cluster
 
 BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
@@ -92,9 +92,8 @@ class Persister:
 def main():
     cluster, db = connect()
     persister = Persister(db)
-    consumer = KafkaConsumer(
+    consumer = make_consumer(
         "security-events", "security-alerts", "agent-actions",
-        bootstrap_servers=BOOTSTRAP,
         group_id="cassandra-persister",
         auto_offset_reset="earliest",
         enable_auto_commit=True,

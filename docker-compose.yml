@@ -174,8 +174,9 @@ services:
     entrypoint: ["/bin/bash", "/init.sh"]
 
   event-writer:
-    context: .
-    build: ./event-writer
+    build:
+      context: .
+      dockerfile: ./event-writer/Dockerfile
     depends_on:
       kafka-init:
         condition: service_completed_successfully

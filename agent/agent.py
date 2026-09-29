@@ -4,7 +4,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 
-from kafka import KafkaConsumer, KafkaProducer
+from common.kafka_client import make_consumer, make_producer
 
 from agent_tools import AgentTools
 
@@ -138,14 +138,14 @@ def investigate(alert, tools=None):
 
 
 def main():
-    consumer = KafkaConsumer(
+    consumer = make_consumer(
         "security-alerts",
         bootstrap_servers=BOOTSTRAP,
         group_id="investigator-agent",
         auto_offset_reset="latest",
         value_deserializer=lambda b: json.loads(b.decode()),
     )
-    producer = KafkaProducer(
+    producer = producer = make_producer(
         bootstrap_servers=BOOTSTRAP,
         value_serializer=lambda value: json.dumps(value).encode(),
     )

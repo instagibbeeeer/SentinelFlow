@@ -3,7 +3,7 @@ from datetime import timezone
 from conftest import load_module
 
 writer = load_module("sentinelflow_writer", "event-writer/writer.py")
-
+writer = load_module("sentinelflow_writer", "common/kafka_client.py")
 
 class Future:
     def __init__(self):

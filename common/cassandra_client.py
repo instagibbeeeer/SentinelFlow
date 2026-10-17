@@ -24,7 +24,7 @@ def create_cluster():
     auth_provider = SigV4AuthProvider()
     return Cluster(
         [endpoint],
-        port=9142,
+        port=9142, #check localstack and aws got different ports
         ssl_context=ssl_context,
         auth_provider=auth_provider,
         protocol_version=4,

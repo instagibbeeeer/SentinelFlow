@@ -10,7 +10,7 @@ from risk import (
 )
 
 BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:29092")
-CHECKPOINT = os.getenv("SPARK_CHECKPOINT_LOCATION", "/tmp/sentinelflow-checkpoints")
+CHECKPOINT = os.getenv("SPARK_CHECKPOINT_LOCATION", "/tmp/sentinelflow-checkpoints") #set up buckets
 KAFKA_AUTH_MODE = os.getenv("KAFKA_AUTH_MODE", "plaintext").lower()
 
 schema = T.StructType([

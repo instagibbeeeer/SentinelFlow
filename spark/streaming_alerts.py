@@ -28,6 +28,7 @@ schema = T.StructType([
 
 def with_kafka_options(writer_or_reader):
     obj = writer_or_reader.option("kafka.bootstrap.servers", BOOTSTRAP)
+    #tests fail on localstack no msk support
     if KAFKA_AUTH_MODE == "msk_iam":
         obj = (obj
             .option("kafka.security.protocol", "SASL_SSL")

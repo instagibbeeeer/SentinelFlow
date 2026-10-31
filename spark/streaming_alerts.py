@@ -65,7 +65,7 @@ def emit_alerts(batch_df, batch_id):
         F.when(F.col("download_bytes") > LARGE_DOWNLOAD_BYTES, F.lit("large download")),
         F.when(F.col("countries") > 1, F.lit("multiple countries")),
     ))
-
+#collect() overwhelms the driver rewrite
     alerts = (batch_df
         .withColumn("alert_id", F.expr("uuid()"))
         .withColumn("alert_time", F.current_timestamp())

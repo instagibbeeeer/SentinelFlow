@@ -67,7 +67,15 @@ def emit_alerts(batch_df, batch_id):
     ))
 #collect() overwhelms the driver rewrite
     alerts = (batch_df
-        .withColumn("alert_id", F.expr("uuid()"))
+        .withColumn("alert_id", F.sha2(F.concat_ws("|",
+            F.lit("risk-v1"),
+            F.col("user_id"),
+            F.col("window.start").cast("string"),
+            F.col("window.end").cast("string"),
+        ),
+        256
+    )
+)
         .withColumn("alert_time", F.current_timestamp())
         .withColumn("reason", F.concat_ws(", ", reason_parts))
         .withColumn("window_start", F.col("window.start"))
